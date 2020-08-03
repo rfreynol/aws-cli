@@ -18,8 +18,10 @@ import xml.dom.minidom
 
 import colorama
 
+from awscli.table import COLORAMA_KWARGS
 from awscli.compat import six
 from awscli.customizations.history.commands import HistorySubcommand
+from awscli.customizations.history.filters import RegexFilter
 
 
 class Formatter(object):
@@ -70,6 +72,11 @@ class Formatter(object):
 
 
 class DetailedFormatter(Formatter):
+    _SIG_FILTER = RegexFilter(
+        'Signature=([a-z0-9]{4})[a-z0-9]{60}',
+        r'Signature=\1...',
+    )
+
     _SECTIONS = {
         'CLI_VERSION': {
             'title': 'AWS CLI command entered',
@@ -114,7 +121,8 @@ class DetailedFormatter(Formatter):
                 {
                     'description': 'with headers',
                     'payload_key': 'headers',
-                    'value_format': 'dictionary'
+                    'value_format': 'dictionary',
+                    'filters': [_SIG_FILTER]
                 },
                 {
                     'description': 'with body',
@@ -172,7 +180,7 @@ class DetailedFormatter(Formatter):
         self._colorize = colorize
         self._value_pformatter = SectionValuePrettyFormatter()
         if self._colorize:
-            colorama.init(autoreset=True, strip=False)
+            colorama.init(**COLORAMA_KWARGS)
 
     def _display(self, event_record):
         section_definition = self._SECTIONS.get(event_record['event_type'])
@@ -199,6 +207,9 @@ class DetailedFormatter(Formatter):
         formatted_value += self._format_value(
             value, event_record, value_definition.get('value_format')
         )
+        if 'filters' in value_definition:
+            for text_filter in value_definition['filters']:
+                formatted_value = text_filter.filter_text(formatted_value)
         self._write_output(formatted_value)
 
     def _write_output(self, content):

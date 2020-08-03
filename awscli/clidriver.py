@@ -52,6 +52,16 @@ LOG = logging.getLogger('awscli.clidriver')
 LOG_FORMAT = (
     '%(asctime)s - %(threadName)s - %(name)s - %(levelname)s - %(message)s')
 HISTORY_RECORDER = get_global_history_recorder()
+# Don't remove this line.  The idna encoding
+# is used by getaddrinfo when dealing with unicode hostnames,
+# and in some cases, there appears to be a race condition
+# where threads will get a LookupError on getaddrinfo() saying
+# that the encoding doesn't exist.  Using the idna encoding before
+# running any CLI code (and any threads it may create) ensures that
+# the encodings.idna is imported and registered in the codecs registry,
+# which will stop the LookupErrors from happening.
+# See: https://bugs.python.org/issue29288
+u''.encode('idna')
 
 
 def main():
@@ -251,6 +261,8 @@ class CLIDriver(object):
         emit_top_level_args_parsed_event(self.session, args)
         if args.profile:
             self.session.set_config_variable('profile', args.profile)
+        if args.region:
+            self.session.set_config_variable('region', args.region)
         if args.debug:
             # TODO:
             # Unfortunately, by setting debug mode here, we miss out
@@ -261,6 +273,8 @@ class CLIDriver(object):
             self.session.set_stream_logger('awscli', logging.DEBUG,
                                            format_string=LOG_FORMAT)
             self.session.set_stream_logger('s3transfer', logging.DEBUG,
+                                           format_string=LOG_FORMAT)
+            self.session.set_stream_logger('urllib3', logging.DEBUG,
                                            format_string=LOG_FORMAT)
             LOG.debug("CLI version: %s", self.session.user_agent())
             LOG.debug("Arguments entered to CLI: %s", sys.argv[1:])

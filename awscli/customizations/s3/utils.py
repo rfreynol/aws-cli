@@ -16,6 +16,7 @@ from datetime import datetime
 import mimetypes
 import errno
 import os
+import re
 import time
 from collections import namedtuple, deque
 
@@ -42,10 +43,14 @@ SIZE_SUFFIX = {
     'gib': 1024 ** 3,
     'tib': 1024 ** 4,
 }
+_S3_ACCESSPOINT_TO_BUCKET_KEY_REGEX = re.compile(
+    r'^(?P<bucket>arn:(aws).*:s3:[a-z\-0-9]+:[0-9]{12}:accesspoint[:/][^/]+)/?'
+    r'(?P<key>.*)$'
+)
 
 
 def human_readable_size(value):
-    """Convert an size in bytes into a human readable format.
+    """Convert a size in bytes into a human readable format.
 
     For example::
 
@@ -58,11 +63,10 @@ def human_readable_size(value):
         >>> human_readable_size(1024 * 1024)
         '1.0 MiB'
 
-    :param value: The size in bytes
+    :param value: The size in bytes.
     :return: The size in a human readable format based on base-2 units.
 
     """
-    one_decimal_point = '%.1f'
     base = 1024
     bytes_int = float(value)
 
@@ -181,11 +185,14 @@ def find_bucket_key(s3_path):
     the form: bucket/key
     It will return the bucket and the key represented by the s3 path
     """
-    s3_components = s3_path.split('/')
+    match = _S3_ACCESSPOINT_TO_BUCKET_KEY_REGEX.match(s3_path)
+    if match:
+        return match.group('bucket'), match.group('key')
+    s3_components = s3_path.split('/', 1)
     bucket = s3_components[0]
-    s3_key = ""
+    s3_key = ''
     if len(s3_components) > 1:
-        s3_key = '/'.join(s3_components[1:])
+        s3_key = s3_components[1]
     return bucket, s3_key
 
 
